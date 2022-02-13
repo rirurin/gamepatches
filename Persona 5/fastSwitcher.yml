@@ -1,0 +1,87 @@
+PPU-[insert your PPU here]:
+  Fast Persona Switcher:
+    Games:
+      "Persona 5":
+        BLES02247: [ All ]
+        NPEB02436: [ All ]
+        BLUS31604: [ All ]
+        NPUB31848: [ All ]
+    Author: Rirurin
+    Notes: Switch between personas instantly using L1 and R1
+    Patch Version: 1.0.0
+    Patch:
+      # Instant Persona Switch and friends
+      - [ be32, 0x84fac0, 0x418202d4 ] # beq, 0x84fd94 (modify the conditions to meet to not load persona status menu)
+      - [ be32, 0x701e00, 0x48000080 ] # b 0x701e80 (plays all persona sounds)
+      - [ be32, 0x68dbd8, 0x3c800000 ] # lis r4, 0 (remove camera shfiting with persona switching)
+      - [ be32, 0x68dbf8, 0x3c800000 ] # lis r4, 0
+      - [ be32, 0x67cf70, 0x60000000 ] # nop (prevents camera from facing joker during switch)
+      - [ be32, 0x6ffedc, 0x60000000 ] # nop (Plays Persona Change Animation)
+      - [ be32, 0x701db0, 0x40820008 ] # bne 0x701db8 (Plays Persona Change Animation)
+      - [ be32, 0x6ffee0, 0x60000000 ] # nop (Shows switched Persona)
+      - [ be32, 0x829c78, 0x60000000 ] # nop (i don't remember what these do but they're important ig)
+      - [ be32, 0x68db6c, 0x60000000 ] # nop
+
+      # Switch between instant switch for L1/R1 and status menu for Square:
+      # Hook into persona loop function to get controller button pressed
+      - [ be32, 0x83ab4c, 0x4ba081d5 ] # bl 0x242d20
+      # === HOOK 0083ab4 ===
+      - [ be32, 0x242d20, 0x3dc00116 ] # lis r14, 0x116
+      - [ be32, 0x242d24, 0xa1ce6b1c ] # lhz r14, 0x6b1c(r14) (load controllerInput into r14)
+      # Check if L1 was pressed
+      - [ be32, 0x242d28, 0x55cf056a ] # rlwinm r15, r14, 0, 0x15, 0x15 (check if controllerInput is square: output 0 to r10 if no true, otherwise will output 0x8000 to r10)
+      - [ be32, 0x242d2c, 0x2c0f0000 ] # cmpwi cr0, r15, 0 (check if r3 is equal to 0 (square was not pressed))
+      - [ be32, 0x242d30, 0x4082002c ] # bne cr0, 0x242d5c (jump if r3 is not equal to 0 (if square was pressed))
+      # Do the same thing again, but check for if R1 gets pressed
+      - [ be32, 0x242d34, 0x55cf0528 ] # rlwinm r15, r14, 0, 0x14, 0x14
+      - [ be32, 0x242d38, 0x2c0f0000 ] # cmpwi cr0, r15, 0
+      - [ be32, 0x242d3c, 0x40820020 ] # bne cr0, 0x242d5c
+      # Check if square was pressed
+      - [ be32, 0x242d40, 0x55cf0420 ] # rlwinm r15, r14, 0, 0x10, 0x10
+      - [ be32, 0x242d44, 0x2c0f0000 ] # cmpwi cr0, r15, 0
+      - [ be32, 0x242d48, 0x40820028 ] # bne cr0, 0x242d70
+      # If L1 or R1 were pressed, write over the stored value with 0x10
+      - [ be32, 0x242d5c, 0x39c00010 ] # li r14, 0x10
+      - [ be32, 0x242d60, 0x3de00116 ] # lis r15, 0x116
+      - [ be32, 0x242d64, 0x99cf00a0 ] # stb r14, 0xa0(r15) (store 0x10 from r14 into register specified by r15 + offset)
+      - [ be32, 0x242d68, 0x39e00000 ] # li r15, 0x0
+      - [ be32, 0x242d6c, 0x4e800020 ] # blr
+      # If Square is pressed, write over the stored value with 0x0
+      - [ be32, 0x242d70, 0x39c00000 ] # li r14, 0x0
+      - [ be32, 0x242d74, 0x3de00116 ] # lis r15, 0x116
+      - [ be32, 0x242d78, 0x99cf00a0 ] # stb r14, 0xa0(r15)
+      - [ be32, 0x242d7c, 0x39e00000 ] # li r15, 0x0
+      - [ be32, 0x242d80, 0x4e800020 ] # blr
+      # === END HOOK ===
+
+      # Hook into function that runs one frame before entering persona submenu
+      - [ be32, 0x40b24c, 0x4be37b39 ] # bl 0x242d84
+      # === HOOK 0040b24c ===
+      - [ be32, 0x242d84, 0x38a00010 ] # li r5, 0x10
+      - [ be32, 0x242d88, 0x3cc00116 ] # lis r6, 0x116
+      - [ be32, 0x242d8c, 0x98a600a0 ] # stb r5, 0xa0(r6)
+      - [ be32, 0x242d90, 0x38c00000 ] # li r6, 0x0
+      - [ be32, 0x242d94, 0x38a00000 ] # li r5, 0x0
+      - [ be32, 0x242d98, 0x481c84b8 ] # bl 0x421064
+      - [ be32, 0x242d9c, 0x4e800020 ] # blr
+      # === END HOOK ===
+
+      # Hook into setting persona status loop
+      - [ be32, 0x84fab0, 0x60000000 ] # nop
+      - [ be32, 0x84fab4, 0x4b9f3299 ] # bl 0x242d4c
+      # === HOOK 0084fab4 ===
+      # Load in the stored value
+      - [ be32, 0x242d4c, 0x3c600116 ] # lis r3, 0x116
+      - [ be32, 0x242d50, 0xa06300a0 ] # lhz r3, 0xa0(r3) (load value from 0x11600a0)
+      - [ be32, 0x242d54, 0x4e800020 ] # blr
+      # === END HOOK ===
+      - [ be32, 0x84fba8, 0x4b9f31f8 ] # b 0x242da0
+      # === HOOK 0084FBA8 ===
+      # Run SetEquippedPersona to load the switched persona menu and play related sound cues and animations
+      - [ be32, 0x242da0, 0x60850000 ] # ori r5, r4, 0x0
+      - [ be32, 0x242da4, 0x63440000 ] # ori r4, r26, 0x0
+      - [ be32, 0x242da8, 0x4801b1b5 ] # bl 0x25df5c (setEquippedPersona)
+      - [ be32, 0x242dac, 0x60a40000 ] # ori r4, r5, 0x0
+      - [ be32, 0x242db0, 0x38a00000 ] # li r5, 0x0
+      - [ be32, 0x242db4, 0x4860cdf8 ] # b 0x84fbac
+      # === END HOOK ===
